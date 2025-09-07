@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>涅波歌回庫</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>歌回庫</h1>
+</header>
+
+<main>
+  <input type="text" id="search" placeholder="搜尋影片名稱...">
+  <div class="player-wrapper">
+    <div id="player-container">
+      <img id="no-source" src="assets/images/NO SOURCE.png" alt="No Source" style="width:100%;height:100%;object-fit:contain;display:block;">
+      <iframe id="player" src="" allowfullscreen style="display:none;"></iframe>
+    </div>
+  </div>
+  <div class="all-playlist-bar">
+    <button id="all-playlist-btn">全部</button>
+  </div>
+  <div class="playlist-buttons" id="playlist-buttons"></div>
+  <div class="video-grid" id="video-grid"></div>
+</main>
+
+<script>
+
+  const videoGrid = document.getElementById('video-grid');
+  const player = document.getElementById('player');
+  const noSource = document.getElementById('no-source');
+  const searchInput = document.getElementById('search');
+  const playlistButtons = document.getElementById('playlist-buttons');
+   let currentlyPlayingVideo = null;
+
+  let data = [];
+  let filteredData = [];
+  let playlists = [];
+  let allVideos = [];
+  let currentPlaylist = '';
+
+  // cache
+  const CACHE_KEY = 'video_cache_v1';
+  function saveCache() {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(allVideos));
+      console.log('[Cache] Saved to localStorage');
+    } catch (e) {
+      console.warn('[Cache] Failed to save:', e);
+    }
+  }
+  function loadCache() {
+    try {
+      const cache = localStorage.getItem(CACHE_KEY);
+      return cache ? JSON.parse(cache) : null;
+    } catch (e) {
+      console.warn('[Cache] Failed to load:', e);
+      return null;
+    }
+  }
+
+  // + btns
+  // parse: '1. abc.json' => 'abc'
+  function parsePlaylistName(filename) {
+    return filename.replace('.json', '').replace(/^\d+(?:\.\d+)?\.\s*/, '');
+  }
+  function getPlaylistOrder(filename) {
+    // get num
+    const match = filename.match(/^(\d+(?:\.\d+)?)/);
+    return match ? parseFloat(match[1]) : Infinity;
+  }
+  function renderPlaylistButtons() {
+    playlistButtons.innerHTML = '';
+    // sort: big->small
+    const sorted = [...playlists].sort((a, b) => getPlaylistOrder(b) - getPlaylistOrder(a));
+    sorted.forEach(filename => {
+      const name = parsePlaylistName(filename);
+      const btn = document.createElement('button');
+      btn.textContent = name;
+      btn.className = (currentPlaylist === name) ? 'active' : '';
+      btn.addEventListener('click', () => {
+        currentPlaylist = name;
+        renderPlaylistButtons();
+        document.getElementById('all-playlist-btn').classList.remove('active');
+        loadPlaylist(filename, name);
+      });
+      playlistButtons.appendChild(btn);
+    });
+  }
+
+  // load all
+  function loadAllPlaylists() {
+    console.log('[All] Loading all playlists...');
+    if (allVideos.length > 0) {
+      console.log('[All] Using cached data');
+      data = allVideos;
+      filteredData = data;
+      currentPlaylist = '全部';
+      renderPlaylistButtons();
+      document.getElementById('all-playlist-btn').classList.add('active');
+      renderVideos(data);
+      return;
+    }
+
+    // no cache -> fetch
+    let loaded = 0;
+    let all = [];
+    if (playlists.length === 0) {
+      console.warn('[All] No playlists found!');
+      return;
+    }
+    const sorted = [...playlists].sort((a, b) => getPlaylistOrder(b) - getPlaylistOrder(a));
+    sorted.forEach(filename => {
+      console.log(`[All] Fetching playlist: ${filename}`);
+      fetch('./videos/' + filename)
+        .then(res => res.json())
+        .then(json => {
+          const displayName = parsePlaylistName(filename);
+          all.push(...json.map(v => ({ ...v, playlist: displayName })));
+          console.log(`[All] Loaded ${json.length} videos from ${displayName}`);
+        })
+        .catch((e)=>{
+          console.error(`[All] Failed to load ${filename}:`, e);
+        })
+        .finally(() => {
+          loaded++;
+          if (loaded === sorted.length) {
+            allVideos = all;
+            data = allVideos;
+            filteredData = data;
+            currentPlaylist = '全部';
+            renderPlaylistButtons();
+            document.getElementById('all-playlist-btn').classList.add('active');
+            renderVideos(data);
+            saveCache();
+            console.log(`[All] All playlists loaded. Total videos: ${all.length}`);
+          }
+        });
+    });
+  }
+
+    // load 1
+  function loadPlaylist(filename, displayName) {
+    console.log(`[Playlist] Loading playlist: ${filename}`);
+    fetch('./videos/' + filename)
+      .then(res => res.json())
+      .then(json => {
+        data = json.map(v => ({ ...v, playlist: displayName }));
+        filteredData = data;
+        currentPlaylist = displayName;
+        renderPlaylistButtons();
+        document.getElementById('all-playlist-btn').classList.remove('active');
+        renderVideos(data);
+        console.log(`[Playlist] Loaded ${json.length} videos from ${displayName}`);
+      })
+      .catch(err => {
+        videoGrid.innerHTML = '<div>載入影片資料失敗</div>';
+        console.error(`[Playlist] Failed to load ${filename}:`, err);
+      });
+  }
+
+  // render
+  function renderVideos(list) {
+    videoGrid.innerHTML = "";
+    const isAll = currentPlaylist === '全部';
+    list.forEach((v, i) => {
+      const div = document.createElement('div');
+      div.className = "video-item";
+      if (!isAll) {
+        div.style.animationDelay = (i * 0.07) + 's';
+      } else {
+        div.style.animationDelay = '';
+      }
+      div.innerHTML = `
+        <img loading="lazy" src="${v.thumbnail}" alt="${v.title}" title="${v.title}">
+        <div title="${v.title}">${v.title}</div>
+      `;
+      div.addEventListener('click', () => {
+        let embedUrl = v.url.replace("watch?v=", "embed/").replace("playlist?", "embed/videoseries?");
+        player.src = embedUrl;
+        player.style.display = '';
+        noSource.style.display = 'none';
+          currentlyPlayingVideo = v.url;
+      });
+      videoGrid.appendChild(div);
+    });
+      // clear player if current video not in list
+      if (!list.some(v => v.url === currentlyPlayingVideo)) {
+        player.src = '';
+        player.style.display = 'none';
+        noSource.style.display = 'block';
+        currentlyPlayingVideo = null;
+      }
+    // Observer only for "all"
+    if (isAll) {
+      const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            obs.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1 });
+      document.querySelectorAll('.video-item').forEach(item => {
+        observer.observe(item);
+      });
+    } else {
+      // normal: show all
+      document.querySelectorAll('.video-item').forEach(item => {
+        item.classList.add('visible');
+      });
+    }
+  }
+
+  // search
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.toLowerCase();
+    const results = data.filter(v => v.title.toLowerCase().includes(query));
+    renderVideos(results);
+  });
+  // init: try cache, then load index.json
+  const cached = loadCache();
+  if (cached && cached.length > 0) {
+    console.log(`[Cache] Loaded ${cached.length} videos from cache`);
+    allVideos = cached;
+    data = cached;
+    filteredData = data;
+    currentPlaylist = '全部';
+    document.getElementById('all-playlist-btn').classList.add('active');
+    renderVideos(data);
+  }
+
+  fetch('./videos/index.json')
+    .then(res => res.json())
+    .then(list => {
+      playlists = list;
+      console.log(`[Init] Found ${playlists.length} playlists:`, playlists);
+      renderPlaylistButtons();
+      if (playlists.length > 0 && !cached) {
+        const firstName = parsePlaylistName(playlists[0]);
+        console.log(`[Init] Loading first playlist: ${firstName}`);
+        loadPlaylist(playlists[0], firstName);
+      }
+    })
+    .catch(err => {
+      playlistButtons.innerHTML = '<div>找不到歌單清單</div>';
+      console.error('[Init] Failed to fetch playlist index:', err);
+    });
+
+  // all btn
+  document.getElementById('all-playlist-btn').addEventListener('click', loadAllPlaylists);
+
+</script>
+
+</body>
+</html>
