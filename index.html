@@ -36,6 +36,46 @@
   const playlistButtons = document.getElementById('playlist-buttons');
    let currentlyPlayingVideo = null;
 
+  // float player
+  const playerWrapper = document.querySelector('.player-wrapper');
+  const mainEl = document.querySelector('main');
+  // placeholder
+  let placeholder = document.createElement('div');
+  placeholder.style.display = 'none';
+  placeholder.style.width = '100%';
+  placeholder.style.height = playerWrapper.offsetHeight + 'px';
+  mainEl.insertBefore(placeholder, playerWrapper.nextSibling);
+  let floating = false;
+  function setFloating(state) {
+    if (state !== floating) {
+      if (state) {
+        playerWrapper.classList.add('floating');
+  // show placeholder
+        placeholder.style.display = '';
+        placeholder.style.height = playerWrapper.offsetHeight + 'px';
+      } else {
+        playerWrapper.classList.remove('floating');
+        placeholder.style.display = 'none';
+      }
+      floating = state;
+    }
+  }
+  // 持續偵測 main 是否離開頂部
+  function checkFloating() {
+    const rect = mainEl.getBoundingClientRect();
+    // 若 main 的頂部高於視窗頂部 40px，則浮動
+    if (rect.top < -40) {
+      setFloating(true);
+    } else {
+      setFloating(false);
+    }
+  }
+  window.addEventListener('scroll', () => {
+    window.requestAnimationFrame(checkFloating);
+  });
+  // 初始檢查
+  checkFloating();
+
   let data = [];
   let filteredData = [];
   let playlists = [];
@@ -187,14 +227,14 @@
       });
       videoGrid.appendChild(div);
     });
-      // clear player if current video not in list
+  // clear player
       if (!list.some(v => v.url === currentlyPlayingVideo)) {
         player.src = '';
         player.style.display = 'none';
         noSource.style.display = 'block';
         currentlyPlayingVideo = null;
       }
-    // Observer only for "all"
+  // all observer
     if (isAll) {
       const observer = new IntersectionObserver((entries, obs) => {
         entries.forEach(entry => {
@@ -208,7 +248,7 @@
         observer.observe(item);
       });
     } else {
-      // normal: show all
+  // show all
       document.querySelectorAll('.video-item').forEach(item => {
         item.classList.add('visible');
       });
@@ -221,7 +261,7 @@
     const results = data.filter(v => v.title.toLowerCase().includes(query));
     renderVideos(results);
   });
-  // init: try cache, then load index.json
+  // init cache
   const cached = loadCache();
   if (cached && cached.length > 0) {
     console.log(`[Cache] Loaded ${cached.length} videos from cache`);

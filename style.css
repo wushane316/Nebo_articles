@@ -97,6 +97,24 @@ main {
   box-shadow: 0 4px 24px 0 #43b6ba22;
   animation: fadeInDown 0.6s cubic-bezier(.23,1.01,.32,1) both;
 }
+.player-wrapper.floating {
+  position: fixed !important;
+  bottom: 24px;
+  right: 24px;
+  width: 340px !important;
+  max-width: 90vw;
+  min-width: 180px;
+  height: 190px;
+  aspect-ratio: 16/9;
+  margin: 0;
+  z-index: 9999;
+  box-shadow: 0 8px 32px 0 #43b6ba55;
+  border-radius: 14px;
+  transform: scale(0.7) translateY(0) translateX(0);
+  transition: width 0.7s cubic-bezier(.23,1.01,.32,1), height 0.7s cubic-bezier(.23,1.01,.32,1), bottom 0.7s, right 0.7s, box-shadow 0.6s, border-radius 0.6s, transform 0.7s cubic-bezier(.23,1.01,.32,1);
+}
+
+/* 動畫已由 transition 控制，無需額外 keyframes */
 .player-wrapper iframe {
   position: absolute;
   top: 0;
@@ -188,6 +206,16 @@ main {
 @media (max-width: 900px) {
   main { max-width: 100%; }
   .player-wrapper { max-width: 100%; }
+  .player-wrapper.floating {
+    width: 60vw !important;
+    min-width: 120px;
+    bottom: 10px;
+    right: 10px;
+    height: 100px;
+    border-radius: 8px;
+    transform: scale(0.7) translateY(0) translateX(0);
+    transition: width 0.7s cubic-bezier(.23,1.01,.32,1), height 0.7s cubic-bezier(.23,1.01,.32,1), bottom 0.7s, right 0.7s, box-shadow 0.6s, border-radius 0.6s, transform 0.7s cubic-bezier(.23,1.01,.32,1);
+  }
 }
 @media (max-width: 600px) {
   h1 { font-size: 1.3em; }
